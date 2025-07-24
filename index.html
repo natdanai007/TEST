@@ -102,11 +102,11 @@
 </style>
 </head>
 <body>
- 
+
 <button id="printBtn" title="พิมพ์รายงาน">🖨️ พิมพ์รายงาน</button>
- 
+
 <h1>สรุปยอดขาย (จิน โถง กัว 金铜锅 - Dome Suki)</h1>
- 
+
 <div class="filters">
   <label for="excelFile">โหลดไฟล์ Excel (.xlsx):</label>
   <input type="file" id="excelFile" accept=".xlsx" />
@@ -123,7 +123,7 @@
     <option value="ShopeeFood">ShopeeFood</option>
   </select>
 </div>
- 
+
 <h2>ตาราง Order รายวัน</h2>
 <table id="salesTable">
   <thead>
@@ -141,20 +141,20 @@
     <!-- ข้อมูลแสดงที่นี่ -->
   </tbody>
 </table>
- 
+
 <h2>สรุปยอดรวม</h2>
 <p id="grandTotal" style="font-weight:bold; color:#7a0a0a;"></p>
 <div id="byPlatform" style="color:#7a0a0a;"></div>
- 
+
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <script>
   let mockData = [];
- 
+
   const tableBody = document.querySelector('#salesTable tbody');
   const grandTotal = document.getElementById('grandTotal');
   const byPlatform = document.getElementById('byPlatform');
   const printBtn = document.getElementById('printBtn');
- 
+
   function excelDateToJSDate(serial) {
     const utc_days = Math.floor(serial - 25569);
     const utc_value = utc_days * 86400;
@@ -166,37 +166,37 @@
     const dd = String(correctedDate.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
   }
- 
+
   function filterAndRender() {
     const start = document.getElementById('startDate').value;
     const end = document.getElementById('endDate').value;
     const platform = document.getElementById('platformFilter').value;
- 
+
     let total = 0;
     let platformMap = {};
- 
+
     tableBody.innerHTML = '';
- 
+
     const filtered = mockData.filter(row => {
       const dateOK = (!start || row.date >= start) && (!end || row.date <= end);
       const platformOK = (platform === 'all' || row.platform === platform);
       return dateOK && platformOK;
     });
- 
+
     if(filtered.length === 0) {
       tableBody.innerHTML = '<tr><td colspan="7" style="color:#b30000;">ไม่มีข้อมูลตามเงื่อนไขที่เลือก</td></tr>';
       grandTotal.textContent = 'ราคารวมทั้งหมด: 0 บาท';
       byPlatform.innerHTML = '';
       return;
     }
- 
+
     filtered.forEach(row => {
       const totalPerRow = row.qty * row.price;
       total += totalPerRow;
- 
+
       if (!platformMap[row.platform]) platformMap[row.platform] = 0;
       platformMap[row.platform] += totalPerRow;
- 
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${row.date}</td>
@@ -209,9 +209,9 @@
       `;
       tableBody.appendChild(tr);
     });
- 
+
     grandTotal.textContent = `ราคารวมทั้งหมด: ${total.toLocaleString()} บาท`;
- 
+
     let platformHTML = '<u>ราคารวมตามแพลตฟอร์ม:</u>';
     platformHTML += '<ul>';
     for (let key in platformMap) {
@@ -220,21 +220,21 @@
     platformHTML += '</ul>';
     byPlatform.innerHTML = platformHTML;
   }
- 
+
   document.getElementById('excelFile').addEventListener('change', e => {
     const file = e.target.files[0];
     if (!file) return;
- 
+
     const reader = new FileReader();
     reader.onload = (evt) => {
       const data = new Uint8Array(evt.target.result);
       const workbook = XLSX.read(data, {type: 'array'});
- 
+
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
- 
+
       const jsonData = XLSX.utils.sheet_to_json(worksheet, {defval: ""});
- 
+
       mockData = jsonData.map(row => {
         let dateValue = row['date'];
         if (typeof dateValue === 'number') {
@@ -244,7 +244,7 @@
         } else {
           dateValue = '';
         }
- 
+
         return {
           date: dateValue,
           order_id: row['order_id'] || '',
@@ -254,150 +254,26 @@
           price: Number(row['price']) || 0
         };
       });
- 
+
       if (mockData.length > 0) {
         const dates = mockData.map(d => d.date).sort();
         document.getElementById('startDate').value = dates[0];
         document.getElementById('endDate').value = dates[dates.length -1];
       }
- 
+
       filterAndRender();
     };
     reader.readAsArrayBuffer(file);
   });
- 
+
   document.getElementById('startDate').addEventListener('change', filterAndRender);
   document.getElementById('endDate').addEventListener('change', filterAndRender);
   document.getElementById('platformFilter').addEventListener('change', filterAndRender);
- 
+
   printBtn.addEventListener('click', () => {
     window.print();
   });
 </script>
- 
+
 </body>
 </html>
- 
- 
-const express = require('express');
-const multer = require('multer');
-const XLSX = require('xlsx');
-const mysql = require('mysql2/promise');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
- 
-const app = express();
-app.use(cors());
- 
-const upload = multer({ dest: 'uploads/' });
- 
-const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'youruser',
-  password: 'yourpassword',
-  database: 'yourdb',
-});
- 
-app.post('/upload', upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
- 
-    const filePath = path.resolve(req.file.path);
-    const workbook = XLSX.readFile(filePath);
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(sheet);
- 
-    const conn = await pool.getConnection();
- 
-    for (const row of data) {
-      if (!row['order_id'] || !row['date']) continue;
- 
-      let date = row['date'];
-      if (typeof date === 'number') {
-        const utc_days = Math.floor(date - 25569);
-        const utc_value = utc_days * 86400;
-        const date_info = new Date(utc_value * 1000);
-        const offset = date_info.getTimezoneOffset() * 60000;
-        const correctedDate = new Date(date_info.getTime() + offset);
-        date = correctedDate.toISOString().slice(0, 10);
-      }
- 
-      await conn.query(
-        `INSERT INTO orders (order_id, date, platform, item, quantity, price) VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          row['order_id'] || '',
-          date,
-          row['platform'] || '',
-          row['item'] || '',
-          parseInt(row['quantity'] || 0),
-          parseFloat(row['price'] || 0),
-        ]
-      );
-    }
- 
-    conn.release();
-    fs.unlinkSync(req.file.path); // ลบไฟล์ออกหลังใช้เสร็จ
- 
-    res.json({ message: 'Upload and insert to DB successful', rowsInserted: data.length });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
- 
-const PORT = 3000;
-app.listen(PORT, () => console.log(`✅ Server running at http://localhost:${PORT}`));
- 
- 
-<!DOCTYPE html>
-<html lang="th">
-<head>
-<meta charset="UTF-8" />
-<title>อัปโหลด Excel ไปเก็บฐานข้อมูล</title>
-</head>
-<body>
- 
-<h2>เลือกไฟล์ Excel เพื่ออัปโหลด</h2>
-<input type="file" id="fileInput" accept=".xlsx,.xls" />
-<button onclick="uploadFile()">อัปโหลด</button>
- 
-<div id="result"></div>
- 
-<script>
-  async function uploadFile() {
-    const fileInput = document.getElementById('fileInput');
-    if (!fileInput.files.length) {
-      alert('กรุณาเลือกไฟล์ Excel ก่อน');
-      return;
-    }
- 
-    const file = fileInput.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
- 
-    const resultDiv = document.getElementById('result');
-    resultDiv.textContent = 'กำลังอัปโหลด...';
- 
-    try {
-      const response = await fetch('http://localhost:3000/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-      if (response.ok) {
-        resultDiv.textContent = `อัปโหลดสำเร็จ! แถวข้อมูลที่เพิ่ม: ${data.rowsInserted}`;
-      } else {
-        resultDiv.textContent = `เกิดข้อผิดพลาด: ${data.error || 'Unknown error'}`;
-      }
-    } catch (err) {
-      resultDiv.textContent = 'ไม่สามารถติดต่อ server ได้';
-    }
-  }
-</script>
- 
-</body>
-</html>
- 
- 
