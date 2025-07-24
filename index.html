@@ -1,145 +1,400 @@
-<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-<script>
-  let mockData = [];
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mockup ระบบสรุปยอดขาย - จิน โถง กัว</title>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 900px;
+      margin: 20px auto;
+      padding: 10px;
+    }
+    h1 {
+      text-align: center;
+      color: #b30000;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #aaa;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #eee;
+    }
+    .filters {
+      margin: 10px 0;
+    }
+    button {
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>สรุปยอดขาย - จิน โถง กัว 金铜锅</h1>
 
-  const tableBody = document.querySelector('#salesTable tbody');
-  const grandTotal = document.getElementById('grandTotal');
-  const byPlatform = document.getElementById('byPlatform');
-  const printBtn = document.getElementById('printBtn');
+  <div class="filters">
+    <label>ไฟล์ Excel: <input type="file" id="excelFile" /></label>
+    <button id="uploadBtn">อัปโหลดข้อมูล</button><br /><br />
+    
+    <label>เริ่ม: <input type="date" id="startDate" /></label>
+    <label>ถึง: <input type="date" id="endDate" /></label>
+    <label>แพลตฟอร์ม: 
+      <select id="platformFilter">
+        <option value="all">ทั้งหมด</option>
+        <option value="Grab">Grab</option>
+        <option value="LINE MAN">LINE MAN</option>
+        <option value="Shopee">Shopee</option>
+      </select>
+    </label>
+    <button id="printBtn">พิมพ์</button>
+  </div>
 
-  function excelDateToJSDate(serial) {
-    const utc_days = Math.floor(serial - 25569);
-    const utc_value = utc_days * 86400;
-    const date_info = new Date(utc_value * 1000);
-    const offset = date_info.getTimezoneOffset() * 60000;
-    const correctedDate = new Date(date_info.getTime() + offset);
-    const yyyy = correctedDate.getFullYear();
-    const mm = String(correctedDate.getMonth() + 1).padStart(2, '0');
-    const dd = String(correctedDate.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  }
+  <p id="grandTotal"></p>
+  <div id="byPlatform"></div>
 
-  function filterAndRender() {
-    const start = document.getElementById('startDate').value;
-    const end = document.getElementById('endDate').value;
-    const platform = document.getElementById('platformFilter').value;
+  <table id="salesTable">
+    <thead>
+      <tr>
+        <th>วันที่</th>
+        <th>รหัสออร์เดอร์</th>
+        <th>แพลตฟอร์ม</th>
+        <th>สินค้า</th>
+        <th>จำนวน</th>
+        <th>ราคาต่อหน่วย</th>
+        <th>รวม</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-    let total = 0;
-    let platformMap = {};
+  <script>
+    let mockData = [];
+    let selectedFile = null;
 
-    tableBody.innerHTML = '';
+    const tableBody = document.querySelector('#salesTable tbody');
+    const grandTotal = document.getElementById('grandTotal');
+    const byPlatform = document.getElementById('byPlatform');
 
-    const filtered = mockData.filter(row => {
-      const dateOK = (!start || row.date >= start) && (!end || row.date <= end);
-      const platformOK = (platform === 'all' || row.platform === platform);
-      return dateOK && platformOK;
-    });
-
-    if(filtered.length === 0) {
-      tableBody.innerHTML = '<tr><td colspan="7" style="color:#b30000;">ไม่มีข้อมูลตามเงื่อนไขที่เลือก</td></tr>';
-      grandTotal.textContent = 'ราคารวมทั้งหมด: 0 บาท';
-      byPlatform.innerHTML = '';
-      return;
+    function excelDateToJSDate(serial) {
+      const utc_days = Math.floor(serial - 25569);
+      const utc_value = utc_days * 86400;
+      const date_info = new Date(utc_value * 1000);
+      const offset = date_info.getTimezoneOffset() * 60000;
+      const correctedDate = new Date(date_info.getTime() + offset);
+      const yyyy = correctedDate.getFullYear();
+      const mm = String(correctedDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(correctedDate.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
     }
 
-    filtered.forEach(row => {
-      const totalPerRow = row.qty * row.price;
-      total += totalPerRow;
+    function filterAndRender() {
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+      const platform = document.getElementById('platformFilter').value;
 
-      if (!platformMap[row.platform]) platformMap[row.platform] = 0;
-      platformMap[row.platform] += totalPerRow;
+      let total = 0;
+      let platformMap = {};
+      tableBody.innerHTML = '';
 
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${row.date}</td>
-        <td>${row.order_id}</td>
-        <td>${row.platform}</td>
-        <td>${row.item}</td>
-        <td>${row.qty}</td>
-        <td>${row.price.toLocaleString()}</td>
-        <td>${totalPerRow.toLocaleString()}</td>
-      `;
-      tableBody.appendChild(tr);
-    });
-
-    grandTotal.textContent = `ราคารวมทั้งหมด: ${total.toLocaleString()} บาท`;
-
-    let platformHTML = '<u>ราคารวมตามแพลตฟอร์ม:</u>';
-    platformHTML += '<ul>';
-    for (let key in platformMap) {
-      platformHTML += `<li>${key}: ${platformMap[key].toLocaleString()} บาท</li>`;
-    }
-    platformHTML += '</ul>';
-    byPlatform.innerHTML = platformHTML;
-  }
-
-  // ฟังก์ชันส่งข้อมูล JSON ไป backend (เปลี่ยน URL ให้ตรงกับ backend จริงของคุณ)
-  async function sendDataToServer(data) {
-    try {
-      const res = await fetch('http://localhost:3000/upload-json', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orders: data }),
-      });
-      const result = await res.json();
-      alert(`ส่งข้อมูลไปเซิร์ฟเวอร์สำเร็จ: ${result.message}`);
-    } catch (error) {
-      alert('ส่งข้อมูลไปเซิร์ฟเวอร์ไม่สำเร็จ');
-      console.error(error);
-    }
-  }
-
-  document.getElementById('excelFile').addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const data = new Uint8Array(evt.target.result);
-      const workbook = XLSX.read(data, {type: 'array'});
-
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, {defval: ""});
-
-      mockData = jsonData.map(row => {
-        let dateValue = row['date'];
-        if (typeof dateValue === 'number') {
-          dateValue = excelDateToJSDate(dateValue);
-        } else if (typeof dateValue === 'string') {
-          dateValue = dateValue.trim();
-        } else {
-          dateValue = '';
-        }
-
-        return {
-          date: dateValue,
-          order_id: row['order_id'] || '',
-          platform: row['platform'] || '',
-          item: row['item'] || '',
-          qty: Number(row['qty']) || 0,
-          price: Number(row['price']) || 0
-        };
+      const filtered = mockData.filter(row => {
+        const dateOK = (!start || row.date >= start) && (!end || row.date <= end);
+        const platformOK = (platform === 'all' || row.platform === platform);
+        return dateOK && platformOK;
       });
 
-      if (mockData.length > 0) {
-        const dates = mockData.map(d => d.date).sort();
-        document.getElementById('startDate').value = dates[0];
-        document.getElementById('endDate').value = dates[dates.length -1];
+      if(filtered.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="7" style="color:#b30000;">ไม่มีข้อมูลตามเงื่อนไข</td></tr>';
+        grandTotal.textContent = 'ราคารวมทั้งหมด: 0 บาท';
+        byPlatform.innerHTML = '';
+        return;
       }
 
-      sendDataToServer(mockData); // ส่งข้อมูล JSON ไป backend
-      filterAndRender();
-    };
-    reader.readAsArrayBuffer(file);
-  });
+      filtered.forEach(row => {
+        const totalPerRow = row.qty * row.price;
+        total += totalPerRow;
+        if (!platformMap[row.platform]) platformMap[row.platform] = 0;
+        platformMap[row.platform] += totalPerRow;
 
-  document.getElementById('startDate').addEventListener('change', filterAndRender);
-  document.getElementById('endDate').addEventListener('change', filterAndRender);
-  document.getElementById('platformFilter').addEventListener('change', filterAndRender);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.date}</td>
+          <td>${row.order_id}</td>
+          <td>${row.platform}</td>
+          <td>${row.item}</td>
+          <td>${row.qty}</td>
+          <td>${row.price.toLocaleString()}</td>
+          <td>${totalPerRow.toLocaleString()}</td>
+        `;
+        tableBody.appendChild(tr);
+      });
 
-  printBtn.addEventListener('click', () => {
-    window.print();
-  });
-</script>
+      grandTotal.textContent = `ราคารวมทั้งหมด: ${total.toLocaleString()} บาท`;
+
+      let platformHTML = '<u>ราคารวมตามแพลตฟอร์ม:</u><ul>';
+      for (let key in platformMap) {
+        platformHTML += `<li>${key}: ${platformMap[key].toLocaleString()} บาท</li>`;
+      }
+      platformHTML += '</ul>';
+      byPlatform.innerHTML = platformHTML;
+    }
+
+    function handleUpload() {
+      if (!selectedFile) return alert('กรุณาเลือกไฟล์ Excel ก่อน');
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {defval: ""});
+
+        mockData = jsonData.map(row => {
+          let dateValue = row['date'];
+          if (typeof dateValue === 'number') {
+            dateValue = excelDateToJSDate(dateValue);
+          } else if (typeof dateValue === 'string') {
+            dateValue = dateValue.trim();
+          } else {
+            dateValue = '';
+          }
+
+          return {
+            date: dateValue,
+            order_id: row['order_id'] || '',
+            platform: row['platform'] || '',
+            item: row['item'] || '',
+            qty: Number(row['qty']) || 0,
+            price: Number(row['price']) || 0
+          };
+        });
+
+        if (mockData.length > 0) {
+          const dates = mockData.map(d => d.date).sort();
+          document.getElementById('startDate').value = dates[0];
+          document.getElementById('endDate').value = dates[dates.length - 1];
+        }
+
+        filterAndRender();
+      };
+      reader.readAsArrayBuffer(selectedFile);
+    }
+
+    document.getElementById('excelFile').addEventListener('change', e => {
+      selectedFile = e.target.files[0];
+    });
+
+    document.getElementById('uploadBtn').addEventListener('click', handleUpload);
+    document.getElementById('startDate').addEventListener('change', filterAndRender);
+    document.getElementById('endDate').addEventListener('change', filterAndRender);
+    document.getElementById('platformFilter').addEventListener('change', filterAndRender);
+    document.getElementById('printBtn').addEventListener('click', () => window.print());
+  </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mockup ระบบสรุปยอดขาย - จิน โถง กัว</title>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 900px;
+      margin: 20px auto;
+      padding: 10px;
+    }
+    h1 {
+      text-align: center;
+      color: #b30000;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #aaa;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #eee;
+    }
+    .filters {
+      margin: 10px 0;
+    }
+    button {
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>สรุปยอดขาย - จิน โถง กัว 金铜锅</h1>
+
+  <div class="filters">
+    <label>ไฟล์ Excel: <input type="file" id="excelFile" /></label>
+    <button id="uploadBtn">อัปโหลดข้อมูล</button><br /><br />
+    
+    <label>เริ่ม: <input type="date" id="startDate" /></label>
+    <label>ถึง: <input type="date" id="endDate" /></label>
+    <label>แพลตฟอร์ม: 
+      <select id="platformFilter">
+        <option value="all">ทั้งหมด</option>
+        <option value="Grab">Grab</option>
+        <option value="LINE MAN">LINE MAN</option>
+        <option value="Shopee">Shopee</option>
+      </select>
+    </label>
+    <button id="printBtn">พิมพ์</button>
+  </div>
+
+  <p id="grandTotal"></p>
+  <div id="byPlatform"></div>
+
+  <table id="salesTable">
+    <thead>
+      <tr>
+        <th>วันที่</th>
+        <th>รหัสออร์เดอร์</th>
+        <th>แพลตฟอร์ม</th>
+        <th>สินค้า</th>
+        <th>จำนวน</th>
+        <th>ราคาต่อหน่วย</th>
+        <th>รวม</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    let mockData = [];
+    let selectedFile = null;
+
+    const tableBody = document.querySelector('#salesTable tbody');
+    const grandTotal = document.getElementById('grandTotal');
+    const byPlatform = document.getElementById('byPlatform');
+
+    function excelDateToJSDate(serial) {
+      const utc_days = Math.floor(serial - 25569);
+      const utc_value = utc_days * 86400;
+      const date_info = new Date(utc_value * 1000);
+      const offset = date_info.getTimezoneOffset() * 60000;
+      const correctedDate = new Date(date_info.getTime() + offset);
+      const yyyy = correctedDate.getFullYear();
+      const mm = String(correctedDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(correctedDate.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function filterAndRender() {
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+      const platform = document.getElementById('platformFilter').value;
+
+      let total = 0;
+      let platformMap = {};
+      tableBody.innerHTML = '';
+
+      const filtered = mockData.filter(row => {
+        const dateOK = (!start || row.date >= start) && (!end || row.date <= end);
+        const platformOK = (platform === 'all' || row.platform === platform);
+        return dateOK && platformOK;
+      });
+
+      if(filtered.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="7" style="color:#b30000;">ไม่มีข้อมูลตามเงื่อนไข</td></tr>';
+        grandTotal.textContent = 'ราคารวมทั้งหมด: 0 บาท';
+        byPlatform.innerHTML = '';
+        return;
+      }
+
+      filtered.forEach(row => {
+        const totalPerRow = row.qty * row.price;
+        total += totalPerRow;
+        if (!platformMap[row.platform]) platformMap[row.platform] = 0;
+        platformMap[row.platform] += totalPerRow;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.date}</td>
+          <td>${row.order_id}</td>
+          <td>${row.platform}</td>
+          <td>${row.item}</td>
+          <td>${row.qty}</td>
+          <td>${row.price.toLocaleString()}</td>
+          <td>${totalPerRow.toLocaleString()}</td>
+        `;
+        tableBody.appendChild(tr);
+      });
+
+      grandTotal.textContent = `ราคารวมทั้งหมด: ${total.toLocaleString()} บาท`;
+
+      let platformHTML = '<u>ราคารวมตามแพลตฟอร์ม:</u><ul>';
+      for (let key in platformMap) {
+        platformHTML += `<li>${key}: ${platformMap[key].toLocaleString()} บาท</li>`;
+      }
+      platformHTML += '</ul>';
+      byPlatform.innerHTML = platformHTML;
+    }
+
+    function handleUpload() {
+      if (!selectedFile) return alert('กรุณาเลือกไฟล์ Excel ก่อน');
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {defval: ""});
+
+        mockData = jsonData.map(row => {
+          let dateValue = row['date'];
+          if (typeof dateValue === 'number') {
+            dateValue = excelDateToJSDate(dateValue);
+          } else if (typeof dateValue === 'string') {
+            dateValue = dateValue.trim();
+          } else {
+            dateValue = '';
+          }
+
+          return {
+            date: dateValue,
+            order_id: row['order_id'] || '',
+            platform: row['platform'] || '',
+            item: row['item'] || '',
+            qty: Number(row['qty']) || 0,
+            price: Number(row['price']) || 0
+          };
+        });
+
+        if (mockData.length > 0) {
+          const dates = mockData.map(d => d.date).sort();
+          document.getElementById('startDate').value = dates[0];
+          document.getElementById('endDate').value = dates[dates.length - 1];
+        }
+
+        filterAndRender();
+      };
+      reader.readAsArrayBuffer(selectedFile);
+    }
+
+    document.getElementById('excelFile').addEventListener('change', e => {
+      selectedFile = e.target.files[0];
+    });
+
+    document.getElementById('uploadBtn').addEventListener('click', handleUpload);
+    document.getElementById('startDate').addEventListener('change', filterAndRender);
+    document.getElementById('endDate').addEventListener('change', filterAndRender);
+    document.getElementById('platformFilter').addEventListener('change', filterAndRender);
+    document.getElementById('printBtn').addEventListener('click', () => window.print());
+  </script>
+</body>
+</html>
