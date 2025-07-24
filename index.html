@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<title>อัปโหลด Excel ไปเก็บฐานข้อมูล</title>
+</head>
+<body>
+
+<h2>เลือกไฟล์ Excel เพื่ออัปโหลด</h2>
+<input type="file" id="fileInput" accept=".xlsx,.xls" />
+<button onclick="uploadFile()">อัปโหลด</button>
+
+<div id="result"></div>
+
+<script>
+  async function uploadFile() {
+    const fileInput = document.getElementById('fileInput');
+    if (!fileInput.files.length) {
+      alert('กรุณาเลือกไฟล์ Excel ก่อน');
+      return;
+    }
+
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const resultDiv = document.getElementById('result');
+    resultDiv.textContent = 'กำลังอัปโหลด...';
+
+    try {
+      const response = await fetch('http://localhost:3000/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (response.ok) {
+        resultDiv.textContent = `อัปโหลดสำเร็จ! แถวข้อมูลที่เพิ่ม: ${data.rowsInserted}`;
+      } else {
+        resultDiv.textContent = `เกิดข้อผิดพลาด: ${data.error || 'Unknown error'}`;
+      }
+    } catch (err) {
+      resultDiv.textContent = 'ไม่สามารถติดต่อ server ได้';
+    }
+  }
+</script>
+
+</body>
+</html>
