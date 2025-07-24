@@ -1,48 +1,206 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-<meta charset="UTF-8" />
-<title>อัปโหลด Excel ไปเก็บฐานข้อมูล</title>
+  <meta charset="UTF-8" />
+  <title>รายงานยอดขาย - จิน โถง กัว 金铜锅</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #fff0f0;
+      color: #333;
+      max-width: 1000px;
+      margin: auto;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #c0392b;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background-color: white;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #e74c3c;
+      color: white;
+    }
+    .filters, .summary, .actions {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+    }
+    button {
+      background-color: #e74c3c;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+    input, select {
+      padding: 6px;
+    }
+    .summary-box {
+      background: #ffe5e5;
+      padding: 10px;
+      border-radius: 6px;
+      width: 100%;
+    }
+  </style>
 </head>
 <body>
+  <h1>รายงานยอดขาย - จิน โถง กัว 金铜锅</h1>
 
-<h2>เลือกไฟล์ Excel เพื่ออัปโหลด</h2>
-<input type="file" id="fileInput" accept=".xlsx,.xls" />
-<button onclick="uploadFile()">อัปโหลด</button>
+  <div class="actions">
+    <div>
+      <label>เริ่มวันที่: <input type="date" id="startDate"></label>
+      <label>ถึงวันที่: <input type="date" id="endDate"></label>
+      <label>แพลตฟอร์ม:
+        <select id="platformFilter">
+          <option value="">ทั้งหมด</option>
+          <option value="Grab">Grab</option>
+          <option value="LINE MAN">LINE MAN</option>
+          <option value="ShopeeFood">ShopeeFood</option>
+        </select>
+      </label>
+      <button onclick="applyFilters()">กรองข้อมูล</button>
+    </div>
+    <div>
+      <input type="file" id="excelFile" />
+      <button onclick="uploadExcel()">อัปโหลด Excel</button>
+      <button onclick="window.print()">🖨 Print PDF</button>
+    </div>
+  </div>
 
-<div id="result"></div>
+  <div class="summary">
+    <div class="summary-box" id="totalBox">
+      <strong>ราคารวมทั้งหมด:</strong> <span id="totalAll">-</span> บาท
+      <br>
+      <strong>ราคารวมตามแพลตฟอร์ม:</strong>
+      <ul id="platformTotals"></ul>
+    </div>
+  </div>
 
-<script>
-  async function uploadFile() {
-    const fileInput = document.getElementById('fileInput');
-    if (!fileInput.files.length) {
-      alert('กรุณาเลือกไฟล์ Excel ก่อน');
-      return;
-    }
+  <table id="orderTable">
+    <thead>
+      <tr>
+        <th>Order ID</th>
+        <th>วันที่</th>
+        <th>แพลตฟอร์ม</th>
+        <th>สินค้า</th>
+        <th>จำนวน</th>
+        <th>ราคา (บาท)</th>
+        <th>ราคารวมของวัน (บาท)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-    const file = fileInput.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script>
+    let rawData = [];
 
-    const resultDiv = document.getElementById('result');
-    resultDiv.textContent = 'กำลังอัปโหลด...';
+    function renderTable(data) {
+      const tbody = document.querySelector("#orderTable tbody");
+      tbody.innerHTML = "";
 
-    try {
-      const response = await fetch('http://localhost:3000/upload', {
-        method: 'POST',
-        body: formData,
+      const platformSums = {};
+      let totalSum = 0;
+
+      data.forEach(order => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${order.order_id}</td>
+          <td>${order.date}</td>
+          <td>${order.platform}</td>
+          <td>${order.item}</td>
+          <td>${order.quantity}</td>
+          <td>${order.price}</td>
+          <td>${(order.quantity * order.price).toFixed(2)}</td>
+        `;
+        tbody.appendChild(row);
+
+        const sum = order.quantity * order.price;
+        totalSum += sum;
+        platformSums[order.platform] = (platformSums[order.platform] || 0) + sum;
       });
-      const data = await response.json();
-      if (response.ok) {
-        resultDiv.textContent = `อัปโหลดสำเร็จ! แถวข้อมูลที่เพิ่ม: ${data.rowsInserted}`;
-      } else {
-        resultDiv.textContent = `เกิดข้อผิดพลาด: ${data.error || 'Unknown error'}`;
-      }
-    } catch (err) {
-      resultDiv.textContent = 'ไม่สามารถติดต่อ server ได้';
-    }
-  }
-</script>
 
+      document.getElementById("totalAll").textContent = totalSum.toLocaleString();
+      const ul = document.getElementById("platformTotals");
+      ul.innerHTML = "";
+      Object.entries(platformSums).forEach(([platform, sum]) => {
+        const li = document.createElement("li");
+        li.textContent = `${platform}: ${sum.toLocaleString()} บาท`;
+        ul.appendChild(li);
+      });
+    }
+
+    function applyFilters() {
+      const start = document.getElementById("startDate").value;
+      const end = document.getElementById("endDate").value;
+      const platform = document.getElementById("platformFilter").value;
+
+      const filtered = rawData.filter(order => {
+        const d = order.date;
+        return (!start || d >= start) &&
+               (!end || d <= end) &&
+               (!platform || order.platform === platform);
+      });
+
+      renderTable(filtered);
+    }
+
+    async function uploadExcel() {
+      const fileInput = document.getElementById('excelFile');
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("กรุณาเลือกไฟล์ Excel ก่อน");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet);
+
+        rawData = json.map(row => ({
+          order_id: row.order_id,
+          date: formatDate(row.date),
+          platform: row.platform,
+          item: row.item,
+          quantity: parseInt(row.quantity),
+          price: parseFloat(row.price)
+        }));
+
+        renderTable(rawData);
+
+        // ส่งไปเก็บใน backend
+        const formData = new FormData();
+        formData.append("file", file);
+        await fetch("http://localhost:3000/upload", {
+          method: "POST",
+          body: formData
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function formatDate(excelDate) {
+      if (typeof excelDate === "string") return excelDate;
+      const date = new Date((excelDate - 25569) * 86400 * 1000);
+      return date.toISOString().slice(0, 10);
+    }
+  </script>
 </body>
 </html>
